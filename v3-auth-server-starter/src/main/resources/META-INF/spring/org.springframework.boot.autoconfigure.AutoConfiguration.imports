@@ -1,0 +1,5 @@
+com.wenx.v3authserverstarter.config.CloudOAuth2Configuration
+com.wenx.v3authserverstarter.config.CloudWebSecurityConfiguration
+com.wenx.v3authserverstarter.config.CloudJwtConfiguration
+com.wenx.v3authserverstarter.config.CloudTokenServiceConfiguration
+com.wenx.v3authserverstarter.config.CloudCorsConfiguration 
