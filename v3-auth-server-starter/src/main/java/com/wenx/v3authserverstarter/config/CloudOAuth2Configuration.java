@@ -108,7 +108,7 @@ public class CloudOAuth2Configuration {
             .tokenEndpoint("/oauth2/token")
             .jwkSetEndpoint("/oauth2/jwks")
             .tokenRevocationEndpoint("/oauth2/revoke")
-            .tokenIntrospectionEndpoint("/oauth2/check_token");
+            .tokenIntrospectionEndpoint("/oauth2/introspect");
         
         // 根据配置决定是否添加OIDC端点
         if (properties.getOidc().isEnabled()) {
