@@ -61,6 +61,7 @@ public class CloudWebSecurityConfiguration {
             AccessDeniedHandler accessDeniedHandler) throws Exception {
         
         return http
+            // OAuth2过滤器链(Order=1)会优先处理匹配的端点
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .userDetailsService(userDetailsService)

@@ -38,6 +38,11 @@ public class CloudAuthServerProperties {
      */
     private Cors cors = new Cors();
 
+    /**
+     * OIDC配置
+     */
+    private Oidc oidc = new Oidc();
+
     @Data
     public static class Jwt {
         /**
@@ -72,13 +77,12 @@ public class CloudAuthServerProperties {
          * 公开访问路径
          */
         private String[] publicPaths = {
-            "/oauth2/**", "/.well-known/**", "/login", "/logout", "/error",
-            "/actuator/health", "/admin/token/health",
-            "/api/token/statistics", "/api/token/health",
-            "/api/auth/login", "/api/auth/logout", "/api/auth/refresh",
-            "/api/auth/user/status/**", "/api/auth/token/validate", "/api/auth/user/current",
+            "/oauth/**","/oauth2/**", "/.well-known/**", "/login", "/logout", "/error",
+            "/actuator/**",
+            "/api/auth/login", "/api/auth/logout",
+            "/api/oauth2/test/**",
             "/css/**", "/js/**", "/images/**", "/favicon.ico", "/doc.html",
-            "/v3/api-docs", "/api/v3/auth/**"
+            "/v3/api-docs",
         };
 
         /**
@@ -140,5 +144,28 @@ public class CloudAuthServerProperties {
          * 预检请求缓存时间（秒）
          */
         private long maxAge = 3600L;
+    }
+
+    @Data
+    public static class Oidc {
+        /**
+         * 是否启用OIDC功能
+         */
+        private boolean enabled = true;
+
+        /**
+         * 是否启用UserInfo端点
+         */
+        private boolean userInfoEnabled = true;
+
+        /**
+         * 是否启用客户端注册端点
+         */
+        private boolean clientRegistrationEnabled = false;
+
+        /**
+         * 默认用户邮箱域名
+         */
+        private String defaultEmailDomain = "v3cloud.com";
     }
 } 
