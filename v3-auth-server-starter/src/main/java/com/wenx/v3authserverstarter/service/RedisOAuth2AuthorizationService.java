@@ -1,7 +1,7 @@
 package com.wenx.v3authserverstarter.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,12 +16,23 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Redis缓存的OAuth2授权服务
  * 实现MySQL持久化 + Redis缓存的混合存储策略
+ * 
+ * <h3>架构说明</h3>
+ * <ul>
+ *   <li>一级缓存：Redis 令牌映射缓存 (token -> authorizationId)</li>
+ *   <li>二级缓存：Redis 授权对象缓存 (authorizationId -> authorization data)</li>
+ *   <li>持久化存储：MySQL 数据库</li>
+ * </ul>
+ * 
+ * @author wenx
  */
 @Slf4j
+@RequiredArgsConstructor
 public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationService {
 
     private final JdbcOAuth2AuthorizationService jdbcService;
@@ -46,48 +57,29 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
 
     @Override
     public void save(OAuth2Authorization authorization) {
-        // 1. 保存到MySQL数据库（持久化）
         jdbcService.save(authorization);
-
-        // 2. 缓存到Redis
         cacheAuthorization(authorization);
-
-        // 3. 缓存令牌映射
         cacheTokenMappings(authorization);
-
-        log.debug("OAuth2Authorization saved: id={}, principalName={}",
+        log.debug("OAuth2Authorization saved: id={}, principalName={}", 
                 authorization.getId(), authorization.getPrincipalName());
     }
 
     @Override
     public void remove(OAuth2Authorization authorization) {
-        // 1. 从MySQL删除
         jdbcService.remove(authorization);
-
-        // 2. 从Redis删除
         removeFromCache(authorization);
-
         log.debug("OAuth2Authorization removed: id={}", authorization.getId());
     }
 
     @Override
     public OAuth2Authorization findById(String id) {
-        // 1. 先从Redis缓存查找
-        OAuth2Authorization cached = findFromCache(id);
-        if (cached != null) {
-            log.debug("OAuth2Authorization found in cache: id={}", id);
-            return cached;
+        if (!StringUtils.hasText(id)) {
+            return null;
         }
 
-        // 2. 缓存未命中，从MySQL查找
-        OAuth2Authorization authorization = jdbcService.findById(id);
-        if (authorization != null) {
-            // 重新缓存
-            cacheAuthorization(authorization);
-            log.debug("OAuth2Authorization found in database and cached: id={}", id);
-        }
-
-        return authorization;
+        // 先从缓存查找，缓存未命中则从数据库查找
+        return findFromCache(id)
+                .orElseGet(() -> findFromDatabaseAndCache(id));
     }
 
     @Override
@@ -96,93 +88,75 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
             return null;
         }
 
-        // 1. 先从Redis令牌映射查找授权ID
+        // 通过令牌映射查找授权ID
         String authorizationId = findAuthorizationIdByToken(token, tokenType);
         if (authorizationId != null) {
             OAuth2Authorization authorization = findById(authorizationId);
             if (authorization != null) {
-                log.debug("OAuth2Authorization found by token in cache: token={}, type={}",
-                        maskToken(token), tokenType.getValue());
+                log.debug("OAuth2Authorization found by token: token={}, type={}", 
+                        maskToken(token), getTokenTypeValue(tokenType));
                 return authorization;
             }
+            // 清理无效映射
+            cleanupInvalidTokenMapping(token, tokenType);
         }
 
-        // 2. 缓存未命中，从MySQL查找
-        OAuth2Authorization authorization = jdbcService.findByToken(token, tokenType);
-        if (authorization != null) {
-            // 重新缓存
-            cacheAuthorization(authorization);
-            cacheTokenMappings(authorization);
-            log.debug("OAuth2Authorization found by token in database and cached: token={}, type={}",
-                    maskToken(token), tokenType.getValue());
-        }
-
-        return authorization;
+        // 从数据库查找并缓存
+        return findByTokenFromDatabaseAndCache(token, tokenType);
     }
 
     /**
-     * 缓存授权信息到Redis
+     * 从缓存查找授权信息
      */
-    private void cacheAuthorization(OAuth2Authorization authorization) {
-        try {
-            String key = REDIS_PREFIX + authorization.getId();
-            String json = objectMapper.writeValueAsString(serializeAuthorization(authorization));
-            redisTemplate.opsForValue().set(key, json, CACHE_TTL);
-        } catch (Exception e) {
-            log.error("Failed to cache OAuth2Authorization: id={}", authorization.getId(), e);
-        }
-    }
-
-    /**
-     * 缓存令牌到授权ID的映射
-     */
-    private void cacheTokenMappings(OAuth2Authorization authorization) {
-        try {
-            // 缓存访问令牌映射
-            OAuth2Authorization.Token<OAuth2AccessToken> accessToken =
-                    authorization.getToken(OAuth2AccessToken.class);
-            if (accessToken != null && accessToken.getToken().getTokenValue() != null) {
-                String tokenKey = TOKEN_PREFIX + "access:" + accessToken.getToken().getTokenValue();
-                redisTemplate.opsForValue().set(tokenKey, authorization.getId(), TOKEN_CACHE_TTL);
-            }
-
-            // 缓存刷新令牌映射
-            OAuth2Authorization.Token<OAuth2RefreshToken> refreshToken =
-                    authorization.getToken(OAuth2RefreshToken.class);
-            if (refreshToken != null && refreshToken.getToken().getTokenValue() != null) {
-                String tokenKey = TOKEN_PREFIX + "refresh:" + refreshToken.getToken().getTokenValue();
-                redisTemplate.opsForValue().set(tokenKey, authorization.getId(), TOKEN_CACHE_TTL);
-            }
-
-            // 缓存授权码映射
-            OAuth2Authorization.Token<OAuth2AuthorizationCode> authorizationCode =
-                    authorization.getToken(OAuth2AuthorizationCode.class);
-            if (authorizationCode != null && authorizationCode.getToken().getTokenValue() != null) {
-                String tokenKey = TOKEN_PREFIX + "code:" + authorizationCode.getToken().getTokenValue();
-                redisTemplate.opsForValue().set(tokenKey, authorization.getId(), Duration.ofMinutes(10));
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to cache token mappings: id={}", authorization.getId(), e);
-        }
-    }
-
-    /**
-     * 从Redis缓存查找授权信息
-     */
-    private OAuth2Authorization findFromCache(String id) {
+    private Optional<OAuth2Authorization> findFromCache(String id) {
         try {
             String key = REDIS_PREFIX + id;
             Object cached = redisTemplate.opsForValue().get(key);
             if (cached != null) {
-                Map<String, Object> data = objectMapper.readValue(cached.toString(),
-                        new TypeReference<Map<String, Object>>() {});
-                return deserializeAuthorization(data);
+                // 简化策略：直接返回空，强制从数据库加载以确保数据完整性
+                log.debug("Found cached data for id={}, but forcing database reload", id);
             }
         } catch (Exception e) {
-            log.error("Failed to find OAuth2Authorization from cache: id={}", id, e);
+            log.warn("Failed to find from cache: id={}", id, e);
         }
-        return null;
+        return Optional.empty();
+    }
+
+    /**
+     * 从数据库查找并缓存
+     */
+    private OAuth2Authorization findFromDatabaseAndCache(String id) {
+        try {
+            OAuth2Authorization authorization = jdbcService.findById(id);
+            if (authorization != null) {
+                cacheAuthorization(authorization);
+                log.debug("OAuth2Authorization found in database: id={}", id);
+            }
+            return authorization;
+        } catch (Exception e) {
+            log.error("Error finding from database: id={}", id, e);
+            return null;
+        }
+    }
+
+    /**
+     * 通过令牌从数据库查找并缓存
+     */
+    private OAuth2Authorization findByTokenFromDatabaseAndCache(String token, OAuth2TokenType tokenType) {
+        try {
+            OAuth2Authorization authorization = jdbcService.findByToken(token, tokenType);
+            if (authorization != null) {
+                cacheAuthorization(authorization);
+                cacheTokenMappings(authorization);
+                log.debug("OAuth2Authorization found by token in database: token={}, type={}", 
+                        maskToken(token), getTokenTypeValue(tokenType));
+            }
+            return authorization;
+        } catch (Exception e) {
+            log.error("Error finding by token from database: token={}, type={}", 
+                    maskToken(token), getTokenTypeValue(tokenType), e);
+            return null;
+        }
     }
 
     /**
@@ -190,13 +164,76 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
      */
     private String findAuthorizationIdByToken(String token, OAuth2TokenType tokenType) {
         try {
+            if (tokenType == null) {
+                return findAuthorizationIdByAllTypes(token);
+            }
+            
             String tokenKey = TOKEN_PREFIX + tokenType.getValue() + ":" + token;
             Object cached = redisTemplate.opsForValue().get(tokenKey);
             return cached != null ? cached.toString() : null;
         } catch (Exception e) {
-            log.error("Failed to find authorization ID by token: token={}, type={}",
-                    maskToken(token), tokenType.getValue(), e);
+            log.warn("Failed to find authorization ID by token: token={}, type={}", 
+                    maskToken(token), getTokenTypeValue(tokenType), e);
             return null;
+        }
+    }
+
+    /**
+     * 尝试所有令牌类型查找授权ID
+     */
+    private String findAuthorizationIdByAllTypes(String token) {
+        String[] tokenTypes = {"access", "refresh", "code"};
+        
+        for (String type : tokenTypes) {
+            try {
+                String tokenKey = TOKEN_PREFIX + type + ":" + token;
+                Object cached = redisTemplate.opsForValue().get(tokenKey);
+                if (cached != null) {
+                    log.debug("Found authorization ID with type: token={}, type={}", maskToken(token), type);
+                    return cached.toString();
+                }
+            } catch (Exception e) {
+                log.warn("Error checking token type {}: {}", type, e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 缓存授权信息
+     */
+    private void cacheAuthorization(OAuth2Authorization authorization) {
+        try {
+            String key = REDIS_PREFIX + authorization.getId();
+            String json = objectMapper.writeValueAsString(createSerializationData(authorization));
+            redisTemplate.opsForValue().set(key, json, CACHE_TTL);
+        } catch (Exception e) {
+            log.warn("Failed to cache authorization: id={}", authorization.getId(), e);
+        }
+    }
+
+    /**
+     * 缓存令牌映射
+     */
+    private void cacheTokenMappings(OAuth2Authorization authorization) {
+        try {
+            cacheTokenMapping(authorization, OAuth2AccessToken.class, "access", TOKEN_CACHE_TTL);
+            cacheTokenMapping(authorization, OAuth2RefreshToken.class, "refresh", TOKEN_CACHE_TTL);
+            cacheTokenMapping(authorization, OAuth2AuthorizationCode.class, "code", Duration.ofMinutes(10));
+        } catch (Exception e) {
+            log.warn("Failed to cache token mappings: id={}", authorization.getId(), e);
+        }
+    }
+
+    /**
+     * 缓存单个令牌映射
+     */
+    private <T extends OAuth2Token> void cacheTokenMapping(OAuth2Authorization authorization, 
+                                                           Class<T> tokenClass, String type, Duration ttl) {
+        OAuth2Authorization.Token<T> token = authorization.getToken(tokenClass);
+        if (token != null && token.getToken().getTokenValue() != null) {
+            String tokenKey = TOKEN_PREFIX + type + ":" + token.getToken().getTokenValue();
+            redisTemplate.opsForValue().set(tokenKey, authorization.getId(), ttl);
         }
     }
 
@@ -205,57 +242,57 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
      */
     private void removeFromCache(OAuth2Authorization authorization) {
         try {
-            // 删除授权信息缓存
-            String key = REDIS_PREFIX + authorization.getId();
-            redisTemplate.delete(key);
-
-            // 删除令牌映射缓存
+            redisTemplate.delete(REDIS_PREFIX + authorization.getId());
             removeTokenMappings(authorization);
-
         } catch (Exception e) {
-            log.error("Failed to remove OAuth2Authorization from cache: id={}", authorization.getId(), e);
+            log.warn("Failed to remove from cache: id={}", authorization.getId(), e);
         }
     }
 
     /**
-     * 删除令牌映射缓存
+     * 删除令牌映射
      */
     private void removeTokenMappings(OAuth2Authorization authorization) {
-        try {
-            // 删除访问令牌映射
-            OAuth2Authorization.Token<OAuth2AccessToken> accessToken =
-                    authorization.getToken(OAuth2AccessToken.class);
-            if (accessToken != null && accessToken.getToken().getTokenValue() != null) {
-                String tokenKey = TOKEN_PREFIX + "access:" + accessToken.getToken().getTokenValue();
-                redisTemplate.delete(tokenKey);
-            }
+        removeTokenMapping(authorization, OAuth2AccessToken.class, "access");
+        removeTokenMapping(authorization, OAuth2RefreshToken.class, "refresh");
+        removeTokenMapping(authorization, OAuth2AuthorizationCode.class, "code");
+    }
 
-            // 删除刷新令牌映射
-            OAuth2Authorization.Token<OAuth2RefreshToken> refreshToken =
-                    authorization.getToken(OAuth2RefreshToken.class);
-            if (refreshToken != null && refreshToken.getToken().getTokenValue() != null) {
-                String tokenKey = TOKEN_PREFIX + "refresh:" + refreshToken.getToken().getTokenValue();
-                redisTemplate.delete(tokenKey);
-            }
-
-            // 删除授权码映射
-            OAuth2Authorization.Token<OAuth2AuthorizationCode> authorizationCode =
-                    authorization.getToken(OAuth2AuthorizationCode.class);
-            if (authorizationCode != null && authorizationCode.getToken().getTokenValue() != null) {
-                String tokenKey = TOKEN_PREFIX + "code:" + authorizationCode.getToken().getTokenValue();
-                redisTemplate.delete(tokenKey);
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to remove token mappings from cache: id={}", authorization.getId(), e);
+    /**
+     * 删除单个令牌映射
+     */
+    private <T extends OAuth2Token> void removeTokenMapping(OAuth2Authorization authorization, 
+                                                            Class<T> tokenClass, String type) {
+        OAuth2Authorization.Token<T> token = authorization.getToken(tokenClass);
+        if (token != null && token.getToken().getTokenValue() != null) {
+            String tokenKey = TOKEN_PREFIX + type + ":" + token.getToken().getTokenValue();
+            redisTemplate.delete(tokenKey);
         }
     }
 
     /**
-     * 序列化授权对象用于缓存
+     * 清理无效的令牌映射
      */
-    private Map<String, Object> serializeAuthorization(OAuth2Authorization authorization) {
-        // 这里简化实现，实际项目中需要完整的序列化逻辑
+    private void cleanupInvalidTokenMapping(String token, OAuth2TokenType tokenType) {
+        try {
+            if (tokenType != null) {
+                String tokenKey = TOKEN_PREFIX + tokenType.getValue() + ":" + token;
+                redisTemplate.delete(tokenKey);
+            } else {
+                String[] tokenTypes = {"access", "refresh", "code"};
+                for (String type : tokenTypes) {
+                    redisTemplate.delete(TOKEN_PREFIX + type + ":" + token);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to cleanup invalid token mapping: token={}", maskToken(token), e);
+        }
+    }
+
+    /**
+     * 创建序列化数据
+     */
+    private Map<String, Object> createSerializationData(OAuth2Authorization authorization) {
         return Map.of(
                 "id", authorization.getId(),
                 "registeredClientId", authorization.getRegisteredClientId(),
@@ -267,12 +304,10 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     }
 
     /**
-     * 反序列化授权对象
+     * 获取令牌类型值
      */
-    private OAuth2Authorization deserializeAuthorization(Map<String, Object> data) {
-        // 这里简化实现，实际项目中需要完整的反序列化逻辑
-        // 如果缓存的数据不完整，返回null，将从数据库重新加载
-        return null;
+    private String getTokenTypeValue(OAuth2TokenType tokenType) {
+        return tokenType != null ? tokenType.getValue() : "null";
     }
 
     /**
