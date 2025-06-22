@@ -4,6 +4,7 @@ import com.wenx.v3authserverstarter.handler.DefaultAuthenticationHandler;
 import com.wenx.v3authserverstarter.properties.CloudAuthServerProperties;
 import com.wenx.v3authserverstarter.service.RedisOAuth2AuthorizationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -12,6 +13,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,6 +22,7 @@ import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcUserInfoAuthenticationContext;
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcUserInfoAuthenticationToken;
@@ -29,6 +32,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 /**
  * 云OAuth2授权服务器自动配置
@@ -36,6 +41,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
  * @author wenx
  * @description 提供OAuth2授权服务器的自动配置功能
  */
+@Slf4j
 @AutoConfiguration
 @ConditionalOnClass({
     HttpSecurity.class,
@@ -50,45 +56,43 @@ public class CloudOAuth2Configuration {
 
     /**
      * OAuth2授权服务器安全过滤器链
+     * 使用Spring Authorization Server推荐的配置方式
      */
     @Bean
     @Order(1)
     @ConditionalOnMissingBean(name = "authorizationServerSecurityFilterChain")
-    public SecurityFilterChain authorizationServerSecurityFilterChain(
-            HttpSecurity http,
-            AuthenticationEntryPoint authenticationEntryPoint) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         
-        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = 
-            new OAuth2AuthorizationServerConfigurer();
+        // 使用Spring Authorization Server的默认配置
+        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         
-        http.securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
-            .with(authorizationServerConfigurer, (authorizationServer) -> {
-                // 根据配置决定是否启用OIDC
-                if (properties.getOidc().isEnabled()) {
-                    authorizationServer.oidc(oidc -> {
-                        // 配置UserInfo端点（如果启用）
-                        if (properties.getOidc().isUserInfoEnabled()) {
-                            oidc.userInfoEndpoint(userInfo -> userInfo
-                                .userInfoMapper(this::createUserInfo)
-                            );
-                        }
-                        // 配置客户端注册端点（如果启用）
-                        if (properties.getOidc().isClientRegistrationEnabled()) {
-                            oidc.clientRegistrationEndpoint(Customizer.withDefaults());
-                        }
-                    });
-                }
-            })
-            // 当未认证用户访问需要认证的端点时，使用自定义认证入口点
-            .exceptionHandling(exceptions ->
-                exceptions.authenticationEntryPoint(authenticationEntryPoint)
+        http
+            // 当未认证用户访问需要认证的端点时，重定向到登录页面
+            .exceptionHandling((exceptions) -> exceptions
+                .defaultAuthenticationEntryPointFor(
+                    new LoginUrlAuthenticationEntryPoint("/login"),
+                    new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
+                )
             )
             // 允许授权服务器同时作为资源服务器，验证JWT令牌
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-            // 禁用CSRF，因为这是API服务
-            .csrf(AbstractHttpConfigurer::disable)
-            // 启用CORS支持
-            .cors(Customizer.withDefaults());
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+
+        // 根据配置决定是否启用OIDC
+        if (properties.getOidc().isEnabled()) {
+            http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
+                .oidc(oidc -> {
+                    // 配置UserInfo端点（如果启用）
+                    if (properties.getOidc().isUserInfoEnabled()) {
+                        oidc.userInfoEndpoint(userInfo -> userInfo
+                            .userInfoMapper(this::createUserInfo)
+                        );
+                    }
+                    // 配置客户端注册端点（如果启用）
+                    if (properties.getOidc().isClientRegistrationEnabled()) {
+                        oidc.clientRegistrationEndpoint(Customizer.withDefaults());
+                    }
+                });
+        }
             
         return http.build();
     }
@@ -99,6 +103,7 @@ public class CloudOAuth2Configuration {
     @Bean
     @ConditionalOnMissingBean
     public AuthorizationServerSettings authorizationServerSettings() {
+
         AuthorizationServerSettings.Builder builder = AuthorizationServerSettings.builder()
             .issuer(properties.getIssuer())
             // OAuth2核心端点（总是启用）
@@ -121,7 +126,8 @@ public class CloudOAuth2Configuration {
             builder.oidcLogoutEndpoint("/connect/logout");
         }
         
-        return builder.build();
+        AuthorizationServerSettings settings = builder.build();
+        return settings;
     }
 
     /**
@@ -130,7 +136,8 @@ public class CloudOAuth2Configuration {
     @Bean
     @ConditionalOnMissingBean
     public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
-        return new JdbcRegisteredClientRepository(jdbcTemplate);
+        JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
+        return repository;
     }
 
     /**
@@ -143,7 +150,9 @@ public class CloudOAuth2Configuration {
             JdbcTemplate jdbcTemplate,
             RegisteredClientRepository registeredClientRepository,
             RedisTemplate<String, Object> redisTemplate) {
-        return new RedisOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository, redisTemplate);
+        RedisOAuth2AuthorizationService service = new RedisOAuth2AuthorizationService(
+            jdbcTemplate, registeredClientRepository, redisTemplate);
+        return service;
     }
 
     /**
@@ -157,7 +166,8 @@ public class CloudOAuth2Configuration {
         AuthenticationFailureHandler.class
     })
     public DefaultAuthenticationHandler defaultAuthenticationHandler() {
-        return new DefaultAuthenticationHandler();
+        DefaultAuthenticationHandler handler = new DefaultAuthenticationHandler();
+        return handler;
     }
 
     /**
