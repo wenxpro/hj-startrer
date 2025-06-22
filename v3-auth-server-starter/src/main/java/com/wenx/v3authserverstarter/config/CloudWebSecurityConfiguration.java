@@ -9,10 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -20,79 +17,72 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.security.web.access.AccessDeniedHandler;
 
 /**
- * 云Web安全自动配置
+ * 云Web安全配置
  *
  * @author wenx
- * @description 提供Web安全的自动配置功能
+ * @description
  */
 @AutoConfiguration
-@ConditionalOnClass({HttpSecurity.class, EnableWebSecurity.class})
+@ConditionalOnClass(HttpSecurity.class)
 @ConditionalOnProperty(prefix = "cloud.auth.server", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableWebSecurity // 启用 Spring Security Web 安全功能
+@EnableMethodSecurity // 启用方法级别的安全注解
 @EnableConfigurationProperties(CloudAuthServerProperties.class)
-@EnableWebSecurity
-@EnableMethodSecurity
 @RequiredArgsConstructor
 public class CloudWebSecurityConfiguration {
 
     private final CloudAuthServerProperties properties;
+    private final AuthenticationEntryPoint authenticationEntryPoint;
+    private final AccessDeniedHandler accessDeniedHandler;
+    private final UserDetailsService userDetailsService;
 
     /**
-     * 默认安全过滤器链
+     * 默认Web安全过滤器链
      */
     @Bean
-    @Order(2)
-    @ConditionalOnMissingBean(name = "defaultSecurityFilterChain")
-    public SecurityFilterChain defaultSecurityFilterChain(
-            HttpSecurity http,
-            UserDetailsService userDetailsService,
-            AuthenticationSuccessHandler successHandler,
-            AuthenticationFailureHandler failureHandler,
-            AuthenticationEntryPoint authenticationEntryPoint,
-            AccessDeniedHandler accessDeniedHandler) throws Exception {
-        
-        return http
-            // OAuth2过滤器链(Order=1)会优先处理匹配的端点
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(Customizer.withDefaults())
-            .userDetailsService(userDetailsService)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(properties.getSecurity().getPublicPaths()).permitAll()
-                .requestMatchers(properties.getSecurity().getAdminPaths()).hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-            .formLogin(form -> form
-                .loginPage("/login")
-                .loginProcessingUrl("/login")
-                .successHandler(successHandler)
-                .failureHandler(failureHandler)
-                .permitAll()
-            )
-            .rememberMe(remember -> remember
-                .userDetailsService(userDetailsService)
-                .tokenValiditySeconds(properties.getSecurity().getRememberMeTokenValiditySeconds())
-                .key(properties.getSecurity().getRememberMeKey())
-            )
-            .logout(logout -> logout
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
-                .logoutSuccessUrl("/login?logout")
-                .deleteCookies("JSESSIONID", "remember-me")
-                .permitAll()
-            )
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(authenticationEntryPoint)
-                .accessDeniedHandler(accessDeniedHandler)
-            )
-            .build();
+    @Order(2) // 确保默认Web安全过滤器链在授权服务器链之后处理
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(AbstractHttpConfigurer::disable) // 禁用CSRF，如果您的应用是无状态的API或由前端框架处理了CSRF
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(
+                                "/error/**",
+                                "/actuator/**" // 如果有健康检查等端点
+                        ).permitAll()
+                        .anyRequest().authenticated() // 其他所有请求都需要认证
+                )
+                .formLogin(formLogin -> formLogin
+                        .loginPage("/login") // 指定登录页面URL
+                        .permitAll() // 允许所有人访问登录页面
+                )
+                .rememberMe(rememberMe -> rememberMe
+                        .tokenValiditySeconds(properties.getSecurity().getRememberMeTokenValiditySeconds())
+                        .key(properties.getSecurity().getRememberMeKey())
+                )
+                .logout(logout -> logout
+                        .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
+                        .logoutSuccessUrl("/login?logout")
+                        .deleteCookies("JSESSIONID", "remember-me")
+                        .permitAll()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                );
+
+        // **重要：在这里配置 DaoAuthenticationProvider。
+        // HttpSecurity 会在内部构建自己的 AuthenticationManager，并使用此提供者。**
+        http.authenticationProvider(daoAuthenticationProvider()); //
+
+        return http.build();
     }
 
     /**
@@ -105,19 +95,18 @@ public class CloudWebSecurityConfiguration {
     }
 
     /**
-     * 认证管理器
+     * DaoAuthenticationProvider Bean
+     * 这个 Bean 只是一个提供者，而不是一个完整的 AuthenticationManager。
+     * 它会被 HttpSecurity 自动发现并使用。
      */
     @Bean
     @ConditionalOnMissingBean
-    public AuthenticationManager authenticationManager(
-            UserDetailsService userDetailsService,
-            PasswordEncoder passwordEncoder) {
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder);
-        return new ProviderManager(authProvider);
+        authProvider.setUserDetailsService(userDetailsService); // 使用注入的 UserDetailsService
+        authProvider.setPasswordEncoder(passwordEncoder()); // 使用 passwordEncoder() Bean
+        return authProvider;
     }
-
 
     /**
      * 安全上下文登出处理器
@@ -127,4 +116,4 @@ public class CloudWebSecurityConfiguration {
     public LogoutHandler securityContextLogoutHandler() {
         return new SecurityContextLogoutHandler();
     }
-} 
+}

@@ -21,11 +21,15 @@ import java.util.stream.Collectors;
  * @description 处理JWT token的生成和管理
  */
 @Slf4j
-@RequiredArgsConstructor
 public class TokenService {
 
     private final JwtEncoder jwtEncoder;
     private final CloudAuthServerProperties properties;
+    
+    public TokenService(JwtEncoder jwtEncoder, CloudAuthServerProperties properties) {
+        this.jwtEncoder = jwtEncoder;
+        this.properties = properties;
+    }
     
     /**
      * 生成访问令牌
