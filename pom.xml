@@ -18,6 +18,7 @@
     <modules>
         <module>v3-auth-client-starter</module>
         <module>v3-auth-server-starter</module>
+        <module>v3-dynamic-datasource-starter</module>
         <module>v3-gateway-starter</module>
 <!--        <module>v3-log-starter</module>-->
 <!--        <module>v3-seata-starter</module>-->

@@ -1,0 +1,58 @@
+{
+  "properties": [
+    {
+      "name": "cloud.dynamic-datasource.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "是否启用动态数据源功能"
+    },
+    {
+      "name": "cloud.dynamic-datasource.tenant-detection.header-name",
+      "type": "java.lang.String",
+      "defaultValue": "X-Tenant-Id",
+      "description": "租户ID请求头名称"
+    },
+    {
+      "name": "cloud.dynamic-datasource.tenant-detection.param-name",
+      "type": "java.lang.String",
+      "defaultValue": "tenantId",
+      "description": "租户ID请求参数名称"
+    },
+    {
+      "name": "cloud.dynamic-datasource.tenant-detection.enable-jwt-parsing",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "是否从JWT Token中解析租户ID"
+    },
+    {
+      "name": "cloud.dynamic-datasource.tenant-detection.jwt-tenant-claim",
+      "type": "java.lang.String",
+      "defaultValue": "tenantId",
+      "description": "JWT Token中租户ID的声明名称"
+    },
+    {
+      "name": "cloud.dynamic-datasource.interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "是否启用租户拦截器"
+    },
+    {
+      "name": "cloud.dynamic-datasource.interceptor.include-patterns",
+      "type": "java.util.List<java.lang.String>",
+      "defaultValue": ["/**"],
+      "description": "拦截路径模式"
+    },
+    {
+      "name": "cloud.dynamic-datasource.interceptor.exclude-patterns",
+      "type": "java.util.List<java.lang.String>",
+      "defaultValue": ["/platform/**", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/**", "/error", "/favicon.ico", "/webjars/**", "/static/**", "/public/**"],
+      "description": "排除路径模式"
+    },
+    {
+      "name": "cloud.dynamic-datasource.interceptor.order",
+      "type": "java.lang.Integer",
+      "defaultValue": 0,
+      "description": "拦截器执行顺序"
+    }
+  ]
+} 

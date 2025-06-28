@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.wenx.v3dynamicdatasourcestarter.autoconfigure.V3DynamicDataSourceAutoConfiguration 
