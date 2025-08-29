@@ -1,3 +1,4 @@
 com.wenx.v3oauth2clientstarter.OAuth2LoadBalancedConfiguration
 com.wenx.v3oauth2clientstarter.OAuth2JwtDecoderConfiguration
 com.wenx.v3oauth2clientstarter.OAuth2ClientAutoConfiguration
+com.wenx.v3oauth2clientstarter.FeignOAuth2Configuration

@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -23,6 +24,9 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
 
 /**
  * 云Web安全配置
@@ -52,13 +56,21 @@ public class CloudWebSecurityConfiguration {
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable) // 禁用CSRF，如果您的应用是无状态的API或由前端框架处理了CSRF
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(
-                                "/error/**",
-                                "/actuator/**" // 如果有健康检查等端点
-                        ).permitAll()
-                        .anyRequest().authenticated() // 其他所有请求都需要认证
-                )
+                .authorizeHttpRequests(authorize -> {
+                    // 动态配置公共路径
+                    String[] publicPaths = properties.getSecurity().getPublicPaths();
+                    if (publicPaths != null && publicPaths.length > 0) {
+                        authorize.requestMatchers(publicPaths).permitAll();
+                    }
+                    // 默认的公共路径
+                    authorize.requestMatchers(
+                            "/error/**",
+                            "/actuator/**"
+                    ).permitAll();
+                    authorize.anyRequest().authenticated(); // 其他所有请求都需要认证
+                })
+                // 添加JWT资源服务器配置，支持Bearer token认证
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .formLogin(formLogin -> formLogin
                         .loginPage("/login") // 指定登录页面URL
                         .permitAll() // 允许所有人访问登录页面
@@ -80,7 +92,7 @@ public class CloudWebSecurityConfiguration {
 
         // **重要：在这里配置 DaoAuthenticationProvider。
         // HttpSecurity 会在内部构建自己的 AuthenticationManager，并使用此提供者。**
-        http.authenticationProvider(daoAuthenticationProvider()); //
+        http.authenticationProvider(daoAuthenticationProvider());
 
         return http.build();
     }
