@@ -1,103 +1,178 @@
-### V3 Starter
+# V3 Starter 项目文档
 
-```
-v3-starter
-├── v3-auth-client-starter     # OAuth2客户端 - 资源服务器认证
-├── v3-auth-server-starter     # OAuth2服务端 - 认证授权服务器
-├── v3-gateway-starter         # 网关组件 - API网关和路由
-├── v3-seata-starter          # 分布式事务 - Seata集成
-└── v3-storage-starter        # 文件存储 - MinIO/OSS集成
-```
+本项目提供了一套完整的微服务认证与网关解决方案，包含以下三个核心模块：
+
+- `v3-auth-client-starter`: 微服务客户端认证模块
+- `v3-auth-server-starter`: 认证服务器模块
+- `v3-gateway-starter`: API 网关模块，包含 DDoS 防护与 OpenAPI 文档聚合功能
+
+## 模块功能概览
 
 ### v3-auth-client-starter
+为微服务客户端提供 OAuth2 认证支持，主要功能包括：
+- 自动配置 OAuth2 认证管理器
+- 提供负载均衡的 WebClient 和 RestTemplate
+- 支持 JWT 解码配置
+- 提供环境配置后处理器
 
-**配置属性：**
+### v3-auth-server-starter
+提供完整的认证服务器功能，主要功能包括：
+- OAuth2 授权服务器配置
+- JWT 生成与解码支持
+- 安全配置（CORS、密码编码、用户认证等）
+- 基于 Redis 的 OAuth2 授权服务
+- 自定义 Token 服务
+- 用户认证与权限控制
+
+### v3-gateway-starter
+提供 API 网关功能，主要功能包括：
+- CORS 配置支持
+- DDoS 防护功能
+- OpenAPI 文档聚合与展示
+
+## 快速开始
+
+### 依赖要求
+- Java 17 或更高版本
+- Spring Boot 2.7+
+- Spring Cloud Gateway
+- Spring Security
+- Redis（用于 DDoS 防护和 OAuth2 授权服务）
+
+### 配置说明
+
+#### 启用认证客户端
+在客户端应用的 `application.yml` 中添加以下配置：
 ```yaml
 cloud:
   auth:
     oauth2:
-      enabled: true                          # 启用OAuth2功能
-      load-balancer-enabled: true            # 启用负载均衡
+      enabled: true
+      load-balancer-enabled: true
       jwt:
-        default-jwk-set-uri: http://v3-auth/oauth2/jwks
-        default-issuer-uri: http://v3-auth
+        default-jwk-set-uri: "http://auth-server/.well-known/jwks.json"
+        default-issuer-uri: "http://auth-server"
       default-service:
-        auth-service-name: v3-auth
+        auth-service-name: "auth-server"
 ```
 
-**使用场景：**
-- 微服务需要调用其他受保护的服务
-- 需要验证JWT访问令牌
-- 集成服务发现和负载均衡
-
-### v3-auth-server-starter 
-
-**配置属性：**
-
+#### 启用认证服务器
+在认证服务器应用的 `application.yml` 中添加以下配置：
 ```yaml
 cloud:
   auth:
     server:
       enabled: true
-      issuer: http://v3-auth
+      issuer: "http://auth-server"
       jwt:
-        access-token-expires-in: 3600      # 访问令牌过期时间(秒)
-        refresh-token-expires-in: 604800   # 刷新令牌过期时间(秒)
+        access-token-expires-in: 3600
+        refresh-token-expires-in: 86400
       security:
-        bcrypt-strength: 12
-        public-paths:                       # 公开访问路径
-          - "/oauth2/**"
+        bcrypt-strength: 10
+        remember-me-key: "remember-me"
+        remember-me-token-validity-seconds: 86400
+        public-paths:
           - "/login"
           - "/logout"
+        admin-paths:
+          - "/api/admin/**"
       cors:
         allowed-origins:
-          - "http://localhost:*"
+          - "*"
         allowed-methods:
           - "GET"
           - "POST"
-          - "PUT"
-          - "DELETE"
+        allowed-headers:
+          - "*"
+        exposed-headers:
+          - "*"
+        allow-credentials: true
+        max-age: 3600
+      oidc:
+        enabled: true
+        user-info-enabled: true
+        client-registration-enabled: true
+        default-email-domain: "example.com"
 ```
 
-**使用场景：**
-- 作为认证授权中心
-- 颁发和验证JWT令牌
-- 管理OAuth2客户端
-- 用户登录和权限验证
+#### 启用网关模块
+在网关应用的 `application.yml` 中添加以下配置：
 
-### v3-gateway-starter - API网关
-
-**配置属性：**
+##### CORS 配置
 ```yaml
 cloud:
   gateway:
-    # CORS配置
     cors:
       enabled: true
-    
-    # DDoS防护配置
+```
+
+##### DDoS 防护配置
+```yaml
+cloud:
+  gateway:
     ddos:
       enabled: true
       max-requests-per-minute: 100
       max-requests-per-second: 10
-      blacklist-duration-minutes: 30
-      whitelist-ips: "127.0.0.1,::1"
-    
-    # OpenAPI文档聚合
+      blacklist-duration-minutes: 10
+      suspicious-threshold: 50
+      whitelist-ips: "127.0.0.1,192.168.1.0/24"
+      check-interval-seconds: 60
+```
+
+##### OpenAPI 配置
+```yaml
+cloud:
+  gateway:
     openapi:
       enabled: true
       discovery-enabled: true
+      excluded-services:
+        - "auth-server"
       services:
-        - service-id: v3-auth
-          display-name: 认证授权服务
-          url: /auth/v3/api-docs
-        - service-id: v3-system
-          display-name: 系统管理服务
-          url: /system/v3/api-docs
+        - service-id: "user-service"
+          display-name: "User Service"
+          url: "/user-service/v3/api-docs"
+          enabled: true
+          version: "1.0"
 ```
 
-**使用场景：**
-- API网关统一入口
-- 微服务路由和负载均衡
-- 限流和安全防护
-- API文档统一展示
+## 使用说明
+
+### 认证服务器
+认证服务器提供标准的 OAuth2 授权流程，支持以下功能：
+- 用户登录与认证
+- JWT 令牌生成与验证
+- 客户端注册与管理
+- OIDC 用户信息支持
+
+### 客户端认证
+客户端通过自动配置的 `OAuth2AuthorizedClientManager` 与认证服务器交互，自动处理令牌获取与刷新。
+
+### API 网关
+网关模块提供以下功能：
+- 跨域请求处理（CORS）
+- DDoS 攻击防护，自动识别并限制异常请求
+- OpenAPI 文档聚合，支持多个服务的文档统一展示
+
+## 扩展与定制
+
+### 自定义 CORS 策略
+可以通过修改 `cloud.auth.server.cors` 配置项来自定义认证服务器的 CORS 策略。
+
+### 调整 DDoS 防护参数
+根据实际需求调整 `cloud.gateway.ddos` 下的配置参数，以适应不同的流量模式。
+
+### 添加 OpenAPI 服务
+在 `cloud.gateway.openapi.services` 配置项中添加新的服务配置，即可将服务的 OpenAPI 文档聚合到网关中。
+
+## 贡献指南
+欢迎贡献代码和文档。请遵循以下步骤：
+1. Fork 本项目
+2. 创建新分支 (`git checkout -b feature/new-feature`)
+3. 提交更改 (`git commit -am 'Add new feature'`)
+4. 推送分支 (`git push origin feature/new-feature`)
+5. 创建 Pull Request
+
+## 许可证
+本项目采用 Apache-2.0 许可证。详情请参阅 [LICENSE](LICENSE) 文件。
