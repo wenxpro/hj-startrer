@@ -1,6 +1,7 @@
 package com.wenx.v3oauth2clientstarter;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
@@ -15,9 +16,10 @@ import org.springframework.stereotype.Component;
  * 
  * @author wenx
  */
-@Slf4j
 @Component
 public class OAuth2FeignClient {
+
+    private static final Logger log = LoggerFactory.getLogger(OAuth2FeignClient.class);
 
     @Autowired(required = false)
     private OAuth2AuthorizedClientManager authorizedClientManager;

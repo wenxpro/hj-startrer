@@ -1,11 +1,12 @@
 package com.wenx.v3oauth2clientstarter.interceptor;
 
+import cn.hutool.core.util.StrUtil;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
-import lombok.SneakyThrows;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.stereotype.Component;
 
 import java.net.URI;
 
@@ -46,19 +47,23 @@ public class OAuth2FeignRequestInterceptor implements RequestInterceptor {
     /**
      * 从URL中提取服务名
      */
-    @SneakyThrows
     private String extractServiceName(String url) {
-        URI uri = new URI(url);
-        String host = uri.getHost();
-        // 如果是服务名（不包含点号），直接返回
-        if (host != null && !host.contains(".")) {
-            return host;
+        try {
+            URI uri = new URI(url);
+            String host = uri.getHost();
+            // 如果是服务名（不包含点号），直接返回
+            if (host != null && !host.contains(".")) {
+                return host;
+            }
+            // 如果是域名，提取第一部分作为服务名
+            if (host != null && host.contains(".")) {
+                return host.substring(0, host.indexOf("."));
+            }
+            return null;
+        } catch (Exception e) {
+            // 如果URL解析失败，返回null
+            return null;
         }
-        // 如果是域名，提取第一部分作为服务名
-        if (host != null && host.contains(".")) {
-            return host.substring(0, host.indexOf("."));
-        }
-        return null;
     }
 
     /**
