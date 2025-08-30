@@ -66,6 +66,20 @@
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
 
+        <!-- V3 Core -->
+        <dependency>
+            <groupId>com.wenx</groupId>
+            <artifactId>v3-core</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <!-- Servlet API -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- 工具类库 -->
         <dependency>
             <groupId>cn.hutool</groupId>
