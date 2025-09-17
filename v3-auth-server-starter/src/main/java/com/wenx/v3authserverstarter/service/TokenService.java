@@ -118,7 +118,6 @@ public class TokenService {
         // 添加用户基本信息 - CustomJwtConverter需要这些信息来查询权限
         addClaimIfNotNull(claimsBuilder, "userId", userDetail.getId());
         addClaimIfNotNull(claimsBuilder, "username", userDetail.getUsername());
-        addClaimIfNotNull(claimsBuilder, "account", userDetail.getAccount());
         claimsBuilder.claim("isPlatformUser", userDetail.isPlatformUser());
         
         // 添加用户扩展信息
