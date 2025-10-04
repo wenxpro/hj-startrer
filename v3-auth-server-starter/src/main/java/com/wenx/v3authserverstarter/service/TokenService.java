@@ -125,7 +125,7 @@ public class TokenService {
         addClaimIfNotNull(claimsBuilder, "mobile", userDetail.getMobile());
         addClaimIfNotNull(claimsBuilder, "avatar", userDetail.getAvatar());
         addClaimIfNotNull(claimsBuilder, "status", userDetail.getStatus());
-        addClaimIfNotNull(claimsBuilder, "orgId", userDetail.getOrgId());
+        addClaimIfNotNull(claimsBuilder, "departmentId", userDetail.getDepartmentId());
         addClaimIfNotNull(claimsBuilder, "superAdmin", userDetail.getSuperAdmin());
         
         log.info("JWT生成包含完整用户信息: userId={}, username={}, isPlatformUser={}", 

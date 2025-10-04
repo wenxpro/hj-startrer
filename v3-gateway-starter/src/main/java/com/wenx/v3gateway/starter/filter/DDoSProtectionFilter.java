@@ -1,7 +1,12 @@
 package com.wenx.v3gateway.starter.filter;
 
+import com.wenx.v3gateway.starter.domain.UserContext;
+import com.wenx.v3gateway.starter.enums.UserType;
 import com.wenx.v3gateway.starter.properties.DDoSProtectionProperties;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.wenx.v3gateway.starter.service.BlacklistService;
+import com.wenx.v3gateway.starter.service.DDoSAlertService;
+import com.wenx.v3gateway.starter.service.MetricsService;
+import com.wenx.v3gateway.starter.service.RateLimitService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +15,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -30,7 +36,7 @@ import java.util.Map;
 
 /**
  * DDoS防护过滤器
- * 提供基于Redis的分布式限流和黑名单功能
+ * 统一版本，使用MetricsService和RateLimitService
  */
 @Component
 public class DDoSProtectionFilter implements GlobalFilter, Ordered {
@@ -40,6 +46,12 @@ public class DDoSProtectionFilter implements GlobalFilter, Ordered {
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final DDoSProtectionProperties properties;
     private final ObjectMapper objectMapper;
+    
+    // 统一服务依赖
+    private final RateLimitService rateLimitService;
+    private final BlacklistService blacklistService;
+    private final MetricsService metricsService;
+    private final DDoSAlertService alertService;
 
     // Redis键前缀
     private static final String RATE_LIMIT_PREFIX = "ddos:rate_limit:";
@@ -47,46 +59,136 @@ public class DDoSProtectionFilter implements GlobalFilter, Ordered {
     private static final String COUNTER_PREFIX = "ddos:counter:";
 
     public DDoSProtectionFilter(ReactiveRedisTemplate<String, String> redisTemplate,
-                               DDoSProtectionProperties properties) {
+                               DDoSProtectionProperties properties,
+                               RateLimitService rateLimitService,
+                               BlacklistService blacklistService,
+                               MetricsService metricsService,
+                               DDoSAlertService alertService) {
         this.redisTemplate = redisTemplate;
         this.properties = properties;
         this.objectMapper = new ObjectMapper();
+        this.rateLimitService = rateLimitService;
+        this.blacklistService = blacklistService;
+        this.metricsService = metricsService;
+        this.alertService = alertService;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // 检查DDoS防护是否启用
         if (!properties.isEnabled()) {
             return chain.filter(exchange);
         }
 
+        long startTime = System.currentTimeMillis();
         String clientIp = getClientIp(exchange.getRequest());
         
-        // 检查白名单
+        logger.debug("DDoS protection check for IP: {}", clientIp);
+        
+        return processRequest(exchange, chain, clientIp, startTime);
+    }
+
+    private Mono<Void> processRequest(ServerWebExchange exchange, GatewayFilterChain chain, 
+                                    String clientIp, long startTime) {
+        // 检查IP白名单
         if (isWhitelisted(clientIp)) {
-            logger.debug("IP {} 在白名单中，跳过DDoS检查", clientIp);
-            return chain.filter(exchange);
+            logger.debug("IP {} is whitelisted, skipping DDoS protection", clientIp);
+            return chain.filter(exchange)
+                    .doFinally(signalType -> recordMetrics(clientIp, false, startTime));
         }
 
-        return checkBlacklist(clientIp)
+        // 检查黑名单
+        return blacklistService.isBlacklisted(clientIp)
                 .flatMap(isBlacklisted -> {
-                    if (Boolean.TRUE.equals(isBlacklisted)) {
-                        logger.warn("IP {} 在黑名单中，拒绝请求", clientIp);
-                        return createBlockedResponse(exchange, "IP已被封禁，请稍后再试");
+                    if (isBlacklisted) {
+                        logger.warn("Blocked request from blacklisted IP: {}", clientIp);
+                        recordMetrics(clientIp, true, startTime);
+                        return createBlockedResponse(exchange, "IP is blacklisted");
                     }
-                    return checkRateLimit(clientIp)
-                            .flatMap(isRateLimited -> {
-                                if (Boolean.TRUE.equals(isRateLimited)) {
-                                    logger.warn("IP {} 触发限流，拒绝请求", clientIp);
-                                    return createBlockedResponse(exchange, "请求过于频繁，请稍后再试");
-                                }
-                                return chain.filter(exchange);
-                            });
+                    return performRateLimitCheck(exchange, chain, clientIp, startTime);
                 });
     }
 
-    /**
-     * 获取客户端真实IP
-     */
+    private Mono<Void> performRateLimitCheck(ServerWebExchange exchange, GatewayFilterChain chain, 
+                                           String clientIp, long startTime) {
+        String path = exchange.getRequest().getPath().value();
+        
+        // 使用统一的RateLimitService进行限流检查
+        return rateLimitService.checkRateLimit(clientIp, path)
+                .flatMap(result -> {
+                    if (!result.isAllowed()) {
+                        logger.warn("Rate limit exceeded for IP: {}, path: {}", clientIp, path);
+                        recordMetrics(clientIp, true, startTime);
+                        return handleRateLimitViolation(exchange, clientIp, result, startTime);
+                    }
+                    
+                    // 通过限流检查，继续处理请求
+                    return chain.filter(exchange)
+                            .doFinally(signalType -> recordMetrics(clientIp, false, startTime));
+                });
+    }
+
+    private Mono<Void> handleRateLimitViolation(ServerWebExchange exchange, String clientIp, 
+                                              RateLimitService.RateLimitResult result, long startTime) {
+        // 记录违规行为
+        Duration processingTime = Duration.ofMillis(System.currentTimeMillis() - startTime);
+        metricsService.recordRequest(clientIp, false, processingTime);
+        
+        // 检查是否需要加入黑名单
+        if (shouldAddToBlacklist(result)) {
+            blacklistService.addToBlacklist(clientIp, "Repeated rate limit violations")
+                    .subscribe(unused -> {
+                        logger.warn("Added IP {} to blacklist due to repeated rate limit violations", clientIp);
+                        
+                        // 创建告警事件
+                        Map<String, Object> context = new HashMap<>();
+                        context.put("ip", clientIp);
+                        context.put("reason", "Repeated rate limit violations");
+                        alertService.triggerAlert("SUSPICIOUS_IP_BEHAVIOR", 
+                                                "IP " + clientIp + " added to blacklist", 
+                                                context);
+                    });
+        }
+
+        return createRateLimitResponse(exchange, result);
+    }
+
+    private boolean shouldAddToBlacklist(RateLimitService.RateLimitResult result) {
+        // 简化的黑名单逻辑：当剩余请求数为0且重置时间较长时加入黑名单
+        return result.getRemaining() == 0 && result.getResetTimeSeconds() > 60;
+    }
+
+    private Mono<Void> createRateLimitResponse(ServerWebExchange exchange, RateLimitService.RateLimitResult result) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+        response.getHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        
+        // 添加限流相关头部
+        addRateLimitHeaders(response, result);
+        
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "Too Many Requests");
+        body.put("message", "Rate limit exceeded");
+        body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        body.put("remaining", result.getRemaining());
+        body.put("resetTime", result.getResetTimeSeconds());
+        
+        try {
+            String jsonBody = objectMapper.writeValueAsString(body);
+            DataBuffer buffer = response.bufferFactory().wrap(jsonBody.getBytes(StandardCharsets.UTF_8));
+            return response.writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            logger.error("Error creating rate limit response", e);
+            return response.setComplete();
+        }
+    }
+
+    private void addRateLimitHeaders(ServerHttpResponse response, RateLimitService.RateLimitResult result) {
+        response.getHeaders().add("X-RateLimit-Remaining", String.valueOf(result.getRemaining()));
+        response.getHeaders().add("X-RateLimit-Reset", String.valueOf(result.getResetTimeSeconds()));
+        response.getHeaders().add("Retry-After", String.valueOf(result.getResetTimeSeconds()));
+    }
+
     private String getClientIp(ServerHttpRequest request) {
         String xForwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
         if (StringUtils.hasText(xForwardedFor)) {
@@ -95,127 +197,51 @@ public class DDoSProtectionFilter implements GlobalFilter, Ordered {
         
         String xRealIp = request.getHeaders().getFirst("X-Real-IP");
         if (StringUtils.hasText(xRealIp)) {
-            return xRealIp;
+            return xRealIp.trim();
         }
         
         String remoteAddr = request.getRemoteAddress() != null ? 
                 request.getRemoteAddress().getAddress().getHostAddress() : "unknown";
+        
         return remoteAddr;
     }
 
-    /**
-     * 检查IP是否在白名单中
-     */
     private boolean isWhitelisted(String ip) {
         if (!StringUtils.hasText(properties.getWhitelistIps())) {
             return false;
         }
         
-        List<String> whitelistIps = Arrays.asList(properties.getWhitelistIps().split(","));
-        return whitelistIps.stream()
+        List<String> whitelist = Arrays.asList(properties.getWhitelistIps().split(","));
+        return whitelist.stream()
                 .map(String::trim)
-                .anyMatch(whiteIp -> whiteIp.equals(ip));
+                .anyMatch(whiteIp -> whiteIp.equals(ip) || ip.startsWith(whiteIp));
     }
 
-    /**
-     * 检查IP是否在黑名单中
-     */
-    private Mono<Boolean> checkBlacklist(String ip) {
-        String blacklistKey = BLACKLIST_PREFIX + ip;
-        return redisTemplate.hasKey(blacklistKey);
-    }
-
-    /**
-     * 检查限流
-     */
-    private Mono<Boolean> checkRateLimit(String ip) {
-        return checkPerSecondLimit(ip)
-                .flatMap(perSecondLimited -> {
-                    if (perSecondLimited) {
-                        return Mono.just(true);
-                    }
-                    return checkPerMinuteLimit(ip);
-                });
-    }
-
-    /**
-     * 检查每秒限流
-     */
-    private Mono<Boolean> checkPerSecondLimit(String ip) {
-        String key = RATE_LIMIT_PREFIX + "second:" + ip;
-        return redisTemplate.opsForValue()
-                .increment(key)
-                .flatMap(count -> {
-                    if (count == 1) {
-                        // 设置过期时间
-                        return redisTemplate.expire(key, Duration.ofSeconds(1))
-                                .then(Mono.just(count > properties.getMaxRequestsPerSecond()));
-                    }
-                    return Mono.just(count > properties.getMaxRequestsPerSecond());
-                });
-    }
-
-    /**
-     * 检查每分钟限流
-     */
-    private Mono<Boolean> checkPerMinuteLimit(String ip) {
-        String key = RATE_LIMIT_PREFIX + "minute:" + ip;
-        return redisTemplate.opsForValue()
-                .increment(key)
-                .flatMap(count -> {
-                    if (count == 1) {
-                        // 设置过期时间
-                        return redisTemplate.expire(key, Duration.ofMinutes(1))
-                                .then(checkSuspiciousBehavior(ip, count))
-                                .then(Mono.just(count > properties.getMaxRequestsPerMinute()));
-                    }
-                    return checkSuspiciousBehavior(ip, count)
-                            .then(Mono.just(count > properties.getMaxRequestsPerMinute()));
-                });
-    }
-
-    /**
-     * 检查可疑行为并添加到黑名单
-     */
-    private Mono<Void> checkSuspiciousBehavior(String ip, Long requestCount) {
-        if (requestCount >= properties.getSuspiciousThreshold()) {
-            logger.warn("检测到可疑行为，IP: {}, 请求数: {}, 添加到黑名单", ip, requestCount);
-            return addToBlacklist(ip);
+    private void recordMetrics(String clientIp, boolean blocked, long startTime) {
+        try {
+            Duration processingTime = Duration.ofMillis(System.currentTimeMillis() - startTime);
+            metricsService.recordRequest(clientIp, blocked, processingTime);
+        } catch (Exception e) {
+            logger.error("Error recording metrics", e);
         }
-        return Mono.empty();
     }
 
-    /**
-     * 添加IP到黑名单
-     */
-    private Mono<Void> addToBlacklist(String ip) {
-        String blacklistKey = BLACKLIST_PREFIX + ip;
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        
-        return redisTemplate.opsForValue()
-                .set(blacklistKey, timestamp, Duration.ofMinutes(properties.getBlacklistDurationMinutes()))
-                .then();
-    }
-
-    /**
-     * 创建被阻止的响应
-     */
     private Mono<Void> createBlockedResponse(ServerWebExchange exchange, String message) {
         ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-        response.getHeaders().add("Content-Type", MediaType.APPLICATION_JSON_VALUE);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 429);
-        result.put("message", message);
-        result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-
+        response.setStatusCode(HttpStatus.FORBIDDEN);
+        response.getHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "Forbidden");
+        body.put("message", message);
+        body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
         try {
-            String json = objectMapper.writeValueAsString(result);
-            DataBuffer buffer = response.bufferFactory().wrap(json.getBytes(StandardCharsets.UTF_8));
+            String jsonBody = objectMapper.writeValueAsString(body);
+            DataBuffer buffer = response.bufferFactory().wrap(jsonBody.getBytes(StandardCharsets.UTF_8));
             return response.writeWith(Mono.just(buffer));
-        } catch (JsonProcessingException e) {
-            logger.error("创建响应JSON失败", e);
+        } catch (Exception e) {
+            logger.error("Error creating blocked response", e);
             return response.setComplete();
         }
     }
@@ -224,4 +250,4 @@ public class DDoSProtectionFilter implements GlobalFilter, Ordered {
     public int getOrder() {
         return -100; // 高优先级，在其他过滤器之前执行
     }
-} 
+}
