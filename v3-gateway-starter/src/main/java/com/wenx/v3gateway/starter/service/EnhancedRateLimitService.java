@@ -33,9 +33,6 @@ public class EnhancedRateLimitService {
     @Autowired
     private RateLimitRuleService ruleService;
     
-    @Autowired
-    private MetricsService metricsService;
-    
     // Redis Lua脚本 - 滑动窗口限流
     private static final String SLIDING_WINDOW_SCRIPT = """
         local key = KEYS[1]
@@ -145,9 +142,6 @@ public class EnhancedRateLimitService {
         // 根据规则算法执行限流检查
         return executeRateLimitCheck(rateLimitKey, rule, userContext)
                 .doOnNext(result -> {
-                    // 记录限流指标
-                    recordMetrics(userContext, rule, result);
-                    
                     if (!result.isAllowed()) {
                         log.info("Rate limit exceeded - User: {}, Path: {}, Rule: {}, Key: {}", 
                             userContext.getUsername(), userContext.getRequestPath(), 
@@ -334,24 +328,6 @@ public class EnhancedRateLimitService {
             return rule.getMaxRequestsPerMinute();
         } else {
             return rule.getMaxRequestsPerHour();
-        }
-    }
-    
-    /**
-     * 记录限流指标
-     */
-    private void recordMetrics(UserContext userContext, RateLimitRule rule, RateLimitResult result) {
-        try {
-            if (metricsService != null) {
-                Duration processingTime = Duration.ofMillis(1); // 默认处理时间
-                metricsService.recordRequest(userContext.getClientIp(), !result.isAllowed(), processingTime);
-                
-                if (!result.isAllowed()) {
-                    metricsService.recordBlacklistedIp(userContext.getClientIp(), "RATE_LIMIT_EXCEEDED");
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to record rate limit metrics: {}", e.getMessage());
         }
     }
     

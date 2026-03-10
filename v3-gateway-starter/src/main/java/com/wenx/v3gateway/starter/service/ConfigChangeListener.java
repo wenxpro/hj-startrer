@@ -1,9 +1,8 @@
 package com.wenx.v3gateway.starter.service;
 
 import com.wenx.v3gateway.starter.domain.RateLimitRule;
-import com.wenx.v3gateway.starter.properties.DDoSProtectionProperties;
-
 import java.util.List;
+import java.util.Map;
 
 /**
  * 配置变更监听器接口
@@ -24,11 +23,11 @@ public interface ConfigChangeListener {
     /**
      * 全局配置变更回调
      * 
-     * @param oldProperties 旧的全局配置
-     * @param newProperties 新的全局配置
+     * @param oldSettings 旧的全局配置
+     * @param newSettings 新的全局配置
      */
-    void onGlobalSettingsChanged(DDoSProtectionProperties oldProperties, 
-                                DDoSProtectionProperties newProperties);
+    void onGlobalSettingsChanged(Map<String, Object> oldSettings, 
+                                Map<String, Object> newSettings);
     
     /**
      * 配置重新加载完成回调

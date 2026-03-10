@@ -1,6 +1,5 @@
 package com.wenx.v3gateway.starter.service;
 
-import com.wenx.v3gateway.starter.properties.DDoSProtectionProperties;
 import com.wenx.v3gateway.starter.domain.RateLimitRule;
 import com.wenx.v3gateway.starter.domain.UserContext;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ import java.util.List;
 public class RateLimitService {
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
-    private final DDoSProtectionProperties properties;
     private final PathMatcherService pathMatcherService;
 
     /**
@@ -160,10 +158,7 @@ public class RateLimitService {
      * 增强限流检查（支持用户上下文和多维度策略）
      */
     public Mono<RateLimitResult> checkRateLimit(String clientIp, String path, UserContext userContext) {
-        if (!properties.isEnhancedEnabled()) {
-            return checkRateLimit(clientIp, path);
-        }
-
+        // 默认启用增强限流
         RateLimitRule rule = getEnhancedRateLimitRule(path, userContext);
         if (rule == null) {
             return Mono.just(new RateLimitResult(true, 0, rule));
@@ -271,10 +266,10 @@ public class RateLimitService {
      * 获取基础限流规则
      */
     private RateLimitRule getRateLimitRule(String path) {
-        // 从配置中获取默认规则，这里简化处理
+        // 从配置中获取默认规则，这里使用默认值
         RateLimitRule defaultRule = new RateLimitRule();
-        defaultRule.setMaxRequestsPerSecond(properties.getMaxRequestsPerSecond());
-        defaultRule.setMaxRequestsPerMinute(properties.getMaxRequestsPerMinute());
+        defaultRule.setMaxRequestsPerSecond(100);
+        defaultRule.setMaxRequestsPerMinute(6000);
         defaultRule.setWindowSize(Duration.ofSeconds(60));
         return defaultRule;
     }
@@ -287,14 +282,14 @@ public class RateLimitService {
         if (userContext != null) {
             String userType = userContext.getIsPlatformUser() != null && userContext.getIsPlatformUser() ? "platform" : "tenant";
             
-            // 这里简化处理，实际应该从配置中获取规则
+            // 使用默认值
             RateLimitRule rule = new RateLimitRule();
             if ("platform".equals(userType)) {
-                rule.setMaxRequestsPerSecond(properties.getDefaultRules().getPlatform().getMaxRequestsPerSecond());
-                rule.setMaxRequestsPerMinute(properties.getDefaultRules().getPlatform().getMaxRequestsPerMinute());
+                rule.setMaxRequestsPerSecond(1000);
+                rule.setMaxRequestsPerMinute(10000);
             } else {
-                rule.setMaxRequestsPerSecond(properties.getDefaultRules().getTenant().getMaxRequestsPerSecond());
-                rule.setMaxRequestsPerMinute(properties.getDefaultRules().getTenant().getMaxRequestsPerMinute());
+                rule.setMaxRequestsPerSecond(100);
+                rule.setMaxRequestsPerMinute(1000);
             }
             rule.setWindowSize(Duration.ofSeconds(60));
             return rule;

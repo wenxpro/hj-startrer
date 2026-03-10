@@ -3,7 +3,6 @@ package com.wenx.v3gateway.starter.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wenx.v3gateway.starter.domain.RateLimitRule;
 import com.wenx.v3gateway.starter.enums.UserType;
-import com.wenx.v3gateway.starter.properties.DDoSProtectionProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,9 +45,6 @@ class ConfigManagementServiceTest {
     @Mock
     private RateLimitRuleService ruleService;
     
-    @Mock
-    private DDoSProtectionProperties properties;
-    
     private ObjectMapper objectMapper;
     private ConfigManagementService configManagementService;
     
@@ -57,10 +53,9 @@ class ConfigManagementServiceTest {
         objectMapper = new ObjectMapper();
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(redisTemplate.opsForSet()).thenReturn(setOperations);
-        when(properties.getRuleCacheRefreshInterval()).thenReturn(30);
         
         configManagementService = new ConfigManagementService(
-            redisTemplate, ruleService, objectMapper, properties);
+            redisTemplate, ruleService, objectMapper);
     }
     
     @Test
@@ -277,8 +272,8 @@ class ConfigManagementServiceTest {
         }
         
         @Override
-        public void onGlobalSettingsChanged(DDoSProtectionProperties oldProperties, 
-                                          DDoSProtectionProperties newProperties) {
+        public void onGlobalSettingsChanged(Map<String, Object> oldSettings, 
+                                          Map<String, Object> newSettings) {
             globalSettingsChanged = true;
         }
         

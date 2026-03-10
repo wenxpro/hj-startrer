@@ -7,7 +7,7 @@
         <groupId>com.wenx</groupId>
         <artifactId>v3-cloud</artifactId>
         <version>${revision}</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>v3-cloud/pom.xml</relativePath>
     </parent>
 
     <artifactId>v3-starter</artifactId>

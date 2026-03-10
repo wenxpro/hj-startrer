@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wenx.v3gateway.starter.domain.RateLimitRule;
-import com.wenx.v3gateway.starter.properties.DDoSProtectionProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -37,7 +36,6 @@ public class ConfigManagementService {
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final RateLimitRuleService ruleService;
     private final ObjectMapper objectMapper;
-    private final DDoSProtectionProperties properties;
     
     // 配置相关Redis键
     private static final String CONFIG_KEY_PREFIX = "gateway:config:";
@@ -494,7 +492,6 @@ public class ConfigManagementService {
             // 构建当前配置快照
             return Map.of(
                 "timestamp", System.currentTimeMillis(),
-                "properties", properties,
                 "version", currentVersion
             );
         });
@@ -586,11 +583,11 @@ public class ConfigManagementService {
     /**
      * 通知所有监听器全局配置变更
      */
-    private void notifyGlobalSettingsChanged(DDoSProtectionProperties oldProperties, 
-                                           DDoSProtectionProperties newProperties) {
+    private void notifyGlobalSettingsChanged(Map<String, Object> oldSettings, 
+                                           Map<String, Object> newSettings) {
         for (ConfigChangeListener listener : globalListeners) {
             try {
-                listener.onGlobalSettingsChanged(oldProperties, newProperties);
+                listener.onGlobalSettingsChanged(oldSettings, newSettings);
             } catch (Exception e) {
                 log.error("Error notifying config change listener: {}", listener.getClass().getSimpleName(), e);
             }

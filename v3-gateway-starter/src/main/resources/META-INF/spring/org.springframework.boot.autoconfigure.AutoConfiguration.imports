@@ -1,3 +1,2 @@
 com.wenx.v3gateway.starter.autoconfigure.V3GatewayAutoConfiguration
 com.wenx.v3gateway.starter.autoconfigure.OpenApiAutoConfiguration
-com.wenx.v3gateway.starter.autoconfigure.DDoSProtectionAutoConfiguration
