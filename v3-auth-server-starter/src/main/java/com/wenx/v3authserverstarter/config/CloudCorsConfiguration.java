@@ -2,6 +2,7 @@ package com.wenx.v3authserverstarter.config;
 
 import com.wenx.v3authserverstarter.properties.CloudAuthServerProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,7 +23,13 @@ import java.util.Arrays;
 @ConditionalOnProperty(prefix = "cloud.auth.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(CloudAuthServerProperties.class)
 @RequiredArgsConstructor
+@Slf4j
 public class CloudCorsConfiguration {
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        log.info("[自动配置] CORS 跨域 已启用（cloud.auth.server.enabled）");
+    }
 
     private final CloudAuthServerProperties properties;
 

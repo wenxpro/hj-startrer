@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    
+
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -11,56 +11,296 @@
     </parent>
 
     <groupId>com.wenx</groupId>
-    <artifactId>v3-cloud</artifactId>
+    <artifactId>hj-parent</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
 
-    <name>v3-cloud</name>
-    <description>SpringBoot3 + Spring Cloud 微服务架构</description>
-
-    <organization>
-        <name>Five Software</name>
-    </organization>
-
-    <developers>
-        <developer>
-            <id>v3-cloud</id>
-            <name>wenxpro</name>
-            <email>wenxpro@outlook.com</email>
-        </developer>
-    </developers>
+    <name>hj-parent</name>
+    <description>hj-frame / hj-startrer 独立构建父 POM（公共脱敏版）</description>
 
     <properties>
         <!-- 项目版本 -->
         <revision>1.0</revision>
-        <v3-active>dev</v3-active>
-        
+
         <!-- 编码和JDK版本 -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <java.version>17</java.version>
-        
-        <!-- 代码生成相关版本 -->
+
+        <!-- Spring Cloud 版本 -->
+        <spring-cloud.version>2023.0.1</spring-cloud.version>
+        <spring-cloud-alibaba.version>2023.0.1.3</spring-cloud-alibaba.version>
+
+        <!-- 核心依赖版本 -->
+        <mybatis-plus.version>3.5.9</mybatis-plus.version>
+        <druid.version>1.2.20</druid.version>
+        <mysql.version>8.0.33</mysql.version>
+        <ojdbc.version>23.3.0.23.09</ojdbc.version>
+        <dynamic-datasource.version>3.6.1</dynamic-datasource.version>
+        <hutool.version>5.8.25</hutool.version>
+        <fastjson2.version>2.0.46</fastjson2.version>
+        <guava.version>33.0.0-jre</guava.version>
+        <commons-lang3.version>3.14.0</commons-lang3.version>
+
+        <!-- 安全相关版本 -->
+        <jjwt.version>0.12.5</jjwt.version>
+        <bcprov.version>1.77</bcprov.version>
+        <java-jwt.version>4.4.0</java-jwt.version>
+
+        <!-- 文档和工具版本 -->
+        <knife4j.version>4.5.0</knife4j.version>
+        <springdoc.version>2.3.0</springdoc.version>
+        <swagger-annotations.version>2.2.20</swagger-annotations.version>
+        <jetbrains-annotations.version>24.1.0</jetbrains-annotations.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok.version>1.18.30</lombok.version>
-    </properties>
 
-    <modules>
-        <module>v3-pom</module>
-    </modules>
+        <!-- 链路追踪版本 -->
+        <micrometer-tracing.version>1.3.8</micrometer-tracing.version>
+        <opentelemetry.version>1.34.1</opentelemetry.version>
+
+        <!-- 其他版本 -->
+        <caffeine.version>3.1.8</caffeine.version>
+        <redisson.version>3.26.0</redisson.version>
+        <transmittable-thread-local.version>2.14.5</transmittable-thread-local.version>
+    </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- V3 POM - 统一依赖管理 -->
+            <!-- Spring Cloud BOM -->
             <dependency>
-                <groupId>com.wenx</groupId>
-                <artifactId>v3-pom</artifactId>
-                <version>${revision}</version>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
+            <!-- Spring Cloud Alibaba BOM -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- hj-frame 框架模块 -->
+            <dependency>
+                <groupId>com.wenx</groupId>
+                <artifactId>v3-core</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wenx</groupId>
+                <artifactId>v3-data</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wenx</groupId>
+                <artifactId>v3-log</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wenx</groupId>
+                <artifactId>v3-redis</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.wenx</groupId>
+                <artifactId>v3-secure</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <!-- 数据库相关 -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid-spring-boot-starter</artifactId>
+                <version>${druid.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.oracle.database.jdbc</groupId>
+                <artifactId>ojdbc8</artifactId>
+                <version>${ojdbc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
+                <version>${dynamic-datasource.version}</version>
+            </dependency>
+
+            <!-- 工具类 -->
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-core</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-crypto</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.swagger.core.v3</groupId>
+                <artifactId>swagger-annotations-jakarta</artifactId>
+                <version>${swagger-annotations.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.jetbrains</groupId>
+                <artifactId>annotations</artifactId>
+                <version>${jetbrains-annotations.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2</artifactId>
+                <version>${fastjson2.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>transmittable-thread-local</artifactId>
+                <version>${transmittable-thread-local.version}</version>
+            </dependency>
+
+            <!-- 链路追踪相关 -->
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-tracing</artifactId>
+                <version>${micrometer-tracing.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-tracing-bridge-otel</artifactId>
+                <version>${micrometer-tracing.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-exporter-jaeger</artifactId>
+                <version>${opentelemetry.version}</version>
+            </dependency>
+
+            <!-- 安全相关 -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bcprov.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.auth0</groupId>
+                <artifactId>java-jwt</artifactId>
+                <version>${java-jwt.version}</version>
+            </dependency>
+
+            <!-- 文档相关 -->
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-openapi3-ui</artifactId>
+                <version>${knife4j.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+
+            <!-- MapStruct -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+
+            <!-- 缓存相关 -->
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+
+            <!-- Lombok -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -71,7 +311,7 @@
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
@@ -95,7 +335,7 @@
                         </excludes>
                     </configuration>
                 </plugin>
-                
+
                 <!-- Maven 编译插件 -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -128,7 +368,7 @@
                         </annotationProcessorPaths>
                     </configuration>
                 </plugin>
-                
+
                 <!-- Maven 资源插件 -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -142,7 +382,7 @@
                         <useDefaultDelimiters>false</useDefaultDelimiters>
                     </configuration>
                 </plugin>
-                
+
                 <!-- Maven Surefire 插件 -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -152,7 +392,7 @@
                         <skipTests>true</skipTests>
                     </configuration>
                 </plugin>
-                
+
                 <!-- Flatten Maven Plugin - 处理 ${revision} 占位符 -->
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -181,18 +421,18 @@
                 </plugin>
             </plugins>
         </pluginManagement>
-        
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
@@ -200,9 +440,8 @@
         </plugins>
     </build>
 
-    <!-- 仓库配置 -->
+    <!-- 仓库配置（公共仓库） -->
     <repositories>
-
         <repository>
             <id>aliyun-public</id>
             <name>Aliyun Public Repository</name>
@@ -264,7 +503,7 @@
                 <enabled>false</enabled>
             </snapshots>
         </pluginRepository>
-        
+
         <pluginRepository>
             <id>spring-plugin-milestones</id>
             <name>Spring Plugin Milestones</name>
@@ -276,7 +515,7 @@
                 <enabled>false</enabled>
             </snapshots>
         </pluginRepository>
-        
+
         <pluginRepository>
             <id>central-plugin</id>
             <name>Maven Central Plugin Repository</name>

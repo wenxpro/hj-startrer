@@ -6,9 +6,7 @@ v3-starter
 ├── v3-auth-server-starter        # OAuth2服务端 - 认证授权服务器
 ├── v3-dynamic-datasource-starter # 动态数据源 - 多租户数据源管理
 ├── v3-gateway-starter            # 网关组件 - API网关和路由
-├── v3-log-starter               # 日志组件 - Jaeger链路追踪
-├── v3-seata-starter             # 分布式事务 - Seata集成（开发中）
-└── v3-storage-starter           # 文件存储 - MinIO/OSS集成（开发中）
+└── v3-log-starter               # 日志组件 - OTel/Jaeger链路追踪
 ```
 
 ### v3-auth-client-starter
@@ -115,8 +113,7 @@ cloud:
 - API网关路由配置
 - CORS跨域支持
 - OpenAPI文档聚合
-- DDoS防护
-- 负载均衡
+- 认证接口限流（Redis 滑动窗口）
 - 服务发现集成
 
 **配置属性：**
@@ -128,10 +125,10 @@ cloud:
       allowed-origins: "*"
       allowed-methods: "*"
       allowed-headers: "*"
-    ddos-protection:
-      enabled: true                        # 启用DDoS防护
-      max-requests-per-minute: 1000
 ```
+
+> 认证接口限流（`AuthRateLimitFilter`）：按 IP 维度 Redis 滑动窗口，超限返回 429；
+> Redis 异常自动降级放行。登录失败锁定由 v3-auth（`auth:login:fail:`）承担。
 
 **使用场景：**
 - 微服务API统一入口
@@ -155,13 +152,10 @@ cloud:
 **配置属性：**
 ```yaml
 cloud:
+  tracing:
+    enabled: true                          # 启用链路追踪（OTel）
   jaeger:
-    enabled: true                          # 启用Jaeger追踪
-    service-name: v3-cloud-service         # 服务名称
-    collector-endpoint: http://localhost:14250
-    sampler-probability: 1.0               # 采样率
-    flush-interval: 1000                   # 刷新间隔(ms)
-    max-queue-size: 100                    # 最大队列大小
+    endpoint: http://localhost:14250       # Jaeger gRPC 端点
 ```
 
 **使用场景：**

@@ -45,7 +45,6 @@
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
-            <version>3.6.1</version>
         </dependency>
 
         <!-- MySQL Driver -->
@@ -59,7 +58,6 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid-spring-boot-starter</artifactId>
-            <version>1.2.20</version>
         </dependency>
 
         <!-- Redis for Caching -->
@@ -73,8 +71,13 @@
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>java-jwt</artifactId>
-            <version>4.4.0</version>
             <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Security OAuth2 JOSE：租户拦截器从 JWT claim 解析租户（P1.4） -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
         </dependency>
 
         <!-- 测试依赖 -->

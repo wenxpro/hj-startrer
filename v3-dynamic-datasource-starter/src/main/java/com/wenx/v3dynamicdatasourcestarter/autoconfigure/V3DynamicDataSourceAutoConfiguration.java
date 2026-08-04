@@ -2,6 +2,7 @@ package com.wenx.v3dynamicdatasourcestarter.autoconfigure;
 
 import com.wenx.v3dynamicdatasourcestarter.interceptor.TenantInterceptor;
 import com.wenx.v3dynamicdatasourcestarter.manager.DataSourceSwitcher;
+import com.wenx.v3dynamicdatasourcestarter.properties.V3DynamicDataSourceProperties;
 import com.wenx.v3dynamicdatasourcestarter.service.TenantDataSourceService;
 import com.wenx.v3dynamicdatasourcestarter.service.impl.TenantDataSourceServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -24,6 +26,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Slf4j
 @AutoConfiguration
 @ComponentScan(basePackages = "com.wenx.v3dynamicdatasourcestarter")
+@EnableConfigurationProperties(V3DynamicDataSourceProperties.class)
 @ConditionalOnClass({DataSourceSwitcher.class})
 @ConditionalOnProperty(prefix = "cloud.dynamic-datasource", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class V3DynamicDataSourceAutoConfiguration {

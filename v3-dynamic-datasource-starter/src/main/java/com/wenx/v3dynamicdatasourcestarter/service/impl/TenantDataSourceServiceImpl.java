@@ -112,26 +112,9 @@ public class TenantDataSourceServiceImpl implements TenantDataSourceService {
 
     @Override
     public void refreshTenantDataSource(String tenantId) {
-        if (tenantId == null || tenantId.trim().isEmpty()) {
-            throw new IllegalArgumentException("租户ID不能为空");
-        }
-
-        if (!existsTenantDataSource(tenantId)) {
-            log.warn("租户数据源不存在，无法刷新: tenantId={}", tenantId);
-            return;
-        }
-
-        try {
-            // 先删除现有数据源
-            dataSourceSwitcher.removeTenantDataSource(tenantId);
-            
-            // 这里可以重新加载配置并创建数据源
-            // 当前简单地记录日志，实际实现中可以从配置中心重新加载配置
-            log.info("租户数据源已刷新: tenantId={}", tenantId);
-        } catch (Exception e) {
-            log.error("刷新租户数据源失败: tenantId={}, error={}", tenantId, e.getMessage());
-            throw new RuntimeException("刷新租户数据源失败: " + e.getMessage(), e);
-        }
+        // P1.4：动态路由为未启用的预留能力，禁止误调导致数据源被删除后不可恢复
+        throw new UnsupportedOperationException(
+            "refreshTenantDataSource 未实现：当前多租户 = 单库 + 租户字段逻辑隔离，动态数据源路由为预留能力（见 docs/修复执行计划 P1.4）");
     }
 
     /**

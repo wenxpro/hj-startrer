@@ -2,6 +2,8 @@ package com.wenx.v3authserverstarter.service;
 
 import com.wenx.v3authserverstarter.properties.CloudAuthServerProperties;
 import com.wenx.v3secure.user.UserDetail;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -22,11 +24,25 @@ import java.util.stream.Collectors;
  * @description 处理JWT token的生成和管理
  */
 @Slf4j
-@RequiredArgsConstructor
 public class TokenService {
 
     private final JwtEncoder jwtEncoder;
     private final CloudAuthServerProperties properties;
+
+    /**
+     * 令牌签发量（D5：业务指标）
+     */
+    private final Counter tokenIssuedCounter;
+
+    public TokenService(JwtEncoder jwtEncoder,
+                        CloudAuthServerProperties properties,
+                        io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+        this.jwtEncoder = jwtEncoder;
+        this.properties = properties;
+        this.tokenIssuedCounter = Counter.builder("auth.token.issued")
+                .description("JWT 令牌签发量")
+                .register(meterRegistry);
+    }
     
     /**
      * 生成访问令牌
@@ -50,7 +66,10 @@ public class TokenService {
     public Map<String, Object> generateTokenResponse(Authentication authentication) {
         String accessToken = generateAccessToken(authentication);
         String refreshToken = generateRefreshToken(authentication);
-        
+
+        // D5：令牌签发量指标
+        tokenIssuedCounter.increment();
+
         Map<String, Object> response = new HashMap<>();
         response.put("access_token", accessToken);
         response.put("token_type", "Bearer");
@@ -86,9 +105,11 @@ public class TokenService {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(properties.getJwt().getRefreshTokenExpiresIn(), ChronoUnit.SECONDS);
         
-        return buildBaseClaims(authentication, now, expiresAt)
-                .claim("token_type", "refresh_token")
-                .build();
+        JwtClaimsSet.Builder builder = buildBaseClaims(authentication, now, expiresAt)
+                .claim("token_type", "refresh_token");
+        // P1.2：refresh token 携带用户信息，刷新时可重建认证主体并签发新 token 对
+        addUserDetailsToClaims(builder, authentication);
+        return builder.build();
     }
     
     /**

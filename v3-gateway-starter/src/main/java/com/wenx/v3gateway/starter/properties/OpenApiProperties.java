@@ -46,9 +46,6 @@ public class OpenApiProperties {
         services.add(new ServiceConfig("v3-gateway", "网关服务", "/v3/api-docs"));
         services.add(new ServiceConfig("v3-auth", "认证服务", "/auth/v3/api-docs"));
         services.add(new ServiceConfig("v3-system", "系统服务", "/system/v3/api-docs"));
-        services.add(new ServiceConfig("v3-batch", "批处理服务", "/batch/v3/api-docs"));
-        services.add(new ServiceConfig("v3-storage", "存储服务", "/storage/v3/api-docs"));
-        services.add(new ServiceConfig("v3-workflow", "工作流服务", "/workflow/v3/api-docs"));
         
         // 默认排除nacos相关服务
         excludedServices.add("nacos");

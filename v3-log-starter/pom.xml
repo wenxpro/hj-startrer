@@ -42,7 +42,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Jaeger链路追踪支持 - 使用OpenTelemetry桥接 -->
+        <!-- Jaeger链路追踪支持 - 使用OpenTelemetry桥接（Micrometer Tracing 标准方案） -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing</artifactId>
@@ -54,6 +54,11 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-jaeger</artifactId>
+        </dependency>
+        <!-- Spring Boot Actuator Tracing 自动配置（组装 Tracer/Propagator/MDC） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-actuator-autoconfigure</artifactId>
         </dependency>
     </dependencies>
 </project>

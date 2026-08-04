@@ -2,6 +2,7 @@ package com.wenx.v3authserverstarter.config;
 
 import com.wenx.v3authserverstarter.properties.CloudAuthServerProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -20,6 +21,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.util.StringUtils;
+
+import java.util.UUID;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
@@ -41,6 +47,7 @@ import java.util.List;
 @EnableMethodSecurity // 启用方法级别的安全注解
 @EnableConfigurationProperties(CloudAuthServerProperties.class)
 @RequiredArgsConstructor
+@Slf4j
 public class CloudWebSecurityConfiguration {
 
     private final CloudAuthServerProperties properties;
@@ -77,7 +84,7 @@ public class CloudWebSecurityConfiguration {
                 )
                 .rememberMe(rememberMe -> rememberMe
                         .tokenValiditySeconds(properties.getSecurity().getRememberMeTokenValiditySeconds())
-                        .key(properties.getSecurity().getRememberMeKey())
+                        .key(resolveRememberMeKey())
                 )
                 .logout(logout -> logout
                         .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
@@ -127,5 +134,20 @@ public class CloudWebSecurityConfiguration {
     @ConditionalOnMissingBean(LogoutHandler.class)
     public LogoutHandler securityContextLogoutHandler() {
         return new SecurityContextLogoutHandler();
+    }
+
+    /**
+     * Remember-Me 签名密钥（P0.1：不硬编码默认值）
+     * 配置了 cloud.auth.server.security.remember-me-key 则使用之，
+     * 否则启动时随机生成（remember-me 令牌在服务重启后失效，可接受）。
+     */
+    private String resolveRememberMeKey() {
+        String configured = properties.getSecurity().getRememberMeKey();
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        String random = UUID.randomUUID().toString();
+        log.warn("未配置 cloud.auth.server.security.remember-me-key，已随机生成（重启后 remember-me 令牌失效）");
+        return random;
     }
 }

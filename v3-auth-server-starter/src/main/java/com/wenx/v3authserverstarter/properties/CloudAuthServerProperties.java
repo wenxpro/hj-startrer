@@ -54,6 +54,22 @@ public class CloudAuthServerProperties {
          * 刷新令牌过期时间（秒）
          */
         private long refreshTokenExpiresIn = 604800; // 7天
+
+        /**
+         * RSA 私钥（PEM，PKCS8）内容或文件路径（P1.3）
+         * 生产经 Nacos 加密配置注入；本地开发放 gitignore 目录或环境变量
+         */
+        private String privateKey;
+
+        /**
+         * RSA 公钥（PEM，SPKI）内容或文件路径（P1.3）
+         */
+        private String publicKey;
+
+        /**
+         * JWK 密钥 ID（P1.3），默认 v3-2026-08，轮换时递增
+         */
+        private String kid = "v3-2026-08";
     }
 
     @Data
@@ -64,9 +80,9 @@ public class CloudAuthServerProperties {
         private int bcryptStrength = 12;
 
         /**
-         * Remember Me密钥
+         * Remember Me密钥（P0.1：移除硬编码默认值，未配置时启动随机生成）
          */
-        private String rememberMeKey = "v3-auth-remember-me-key";
+        private String rememberMeKey;
 
         /**
          * Remember Me令牌有效期（秒）

@@ -1,6 +1,7 @@
 package com.wenx.v3gateway.starter.autoconfigure;
 
 import com.wenx.v3gateway.starter.properties.OpenApiProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -28,6 +29,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 @ConditionalOnClass(name = "org.springdoc.webflux.ui.SwaggerWelcomeWebFlux")
 @ConditionalOnProperty(name = "cloud.gateway.openapi.enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(OpenApiProperties.class)
+@Slf4j
 public class OpenApiAutoConfiguration {
 
     @Autowired(required = false)
@@ -37,6 +39,7 @@ public class OpenApiAutoConfiguration {
 
     public OpenApiAutoConfiguration(OpenApiProperties openApiProperties) {
         this.openApiProperties = openApiProperties;
+        log.info("[自动配置] OpenApiAutoConfiguration 已启用（cloud.gateway.openapi.enabled，文档聚合）");
     }
 
     /**
