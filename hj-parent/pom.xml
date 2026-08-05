@@ -41,9 +41,7 @@
         <dynamic-datasource.version>3.6.1</dynamic-datasource.version>
         <hutool.version>5.8.25</hutool.version>
         <fastjson2.version>2.0.46</fastjson2.version>
-        <guava.version>33.0.0-jre</guava.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
-
         <!-- 安全相关版本 -->
         <jjwt.version>0.12.5</jjwt.version>
         <bcprov.version>1.77</bcprov.version>
@@ -53,7 +51,6 @@
         <knife4j.version>4.5.0</knife4j.version>
         <springdoc.version>2.3.0</springdoc.version>
         <swagger-annotations.version>2.2.20</swagger-annotations.version>
-        <jetbrains-annotations.version>24.1.0</jetbrains-annotations.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok.version>1.18.30</lombok.version>
 
@@ -64,7 +61,6 @@
         <!-- 其他版本 -->
         <caffeine.version>3.1.8</caffeine.version>
         <redisson.version>3.26.0</redisson.version>
-        <transmittable-thread-local.version>2.14.5</transmittable-thread-local.version>
     </properties>
 
     <dependencyManagement>
@@ -163,21 +159,9 @@
             </dependency>
 
             <dependency>
-                <groupId>cn.hutool</groupId>
-                <artifactId>hutool-crypto</artifactId>
-                <version>${hutool.version}</version>
-            </dependency>
-
-            <dependency>
                 <groupId>io.swagger.core.v3</groupId>
                 <artifactId>swagger-annotations-jakarta</artifactId>
                 <version>${swagger-annotations.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>org.jetbrains</groupId>
-                <artifactId>annotations</artifactId>
-                <version>${jetbrains-annotations.version}</version>
             </dependency>
 
             <dependency>
@@ -187,21 +171,9 @@
             </dependency>
 
             <dependency>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-                <version>${guava.version}</version>
-            </dependency>
-
-            <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang3.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>transmittable-thread-local</artifactId>
-                <version>${transmittable-thread-local.version}</version>
             </dependency>
 
             <!-- 链路追踪相关 -->
@@ -443,45 +415,9 @@
     <!-- 仓库配置（公共仓库） -->
     <repositories>
         <repository>
-            <id>aliyun-public</id>
-            <name>Aliyun Public Repository</name>
-            <url>https://maven.aliyun.com/repository/public</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-
-        <repository>
-            <id>aliyun-spring</id>
-            <name>Aliyun Spring Repository</name>
-            <url>https://maven.aliyun.com/repository/spring</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-
-        <repository>
-            <id>spring-milestones</id>
-            <name>Spring Milestones</name>
-            <url>https://repo.spring.io/milestone</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-
-        <repository>
             <id>central</id>
             <name>Maven Central Repository</name>
-            <url>https://repo1.maven.org/maven2</url>
+            <url>https://repo.maven.apache.org/maven2</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -519,7 +455,7 @@
         <pluginRepository>
             <id>central-plugin</id>
             <name>Maven Central Plugin Repository</name>
-            <url>https://repo1.maven.org/maven2</url>
+            <url>https://repo.maven.apache.org/maven2</url>
             <releases>
                 <enabled>true</enabled>
             </releases>

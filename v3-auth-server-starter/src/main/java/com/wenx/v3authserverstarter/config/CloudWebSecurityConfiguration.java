@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -21,18 +22,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.logout.LogoutHandler;
-import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
-import org.springframework.util.StringUtils;
-
-import java.util.UUID;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.beans.factory.annotation.Autowired;
-import java.util.List;
+import org.springframework.util.StringUtils;
+
+import java.util.UUID;
 
 /**
  * 云Web安全配置
@@ -69,10 +65,12 @@ public class CloudWebSecurityConfiguration {
                     if (publicPaths != null && publicPaths.length > 0) {
                         authorize.requestMatchers(publicPaths).permitAll();
                     }
-                    // 默认的公共路径
+                    // 默认的公共路径（Z2：actuator 收敛，仅探活与指标）
                     authorize.requestMatchers(
                             "/error/**",
-                            "/actuator/**"
+                            "/actuator/health/**",
+                            "/actuator/info/**",
+                            "/actuator/prometheus/**"
                     ).permitAll();
                     authorize.anyRequest().authenticated(); // 其他所有请求都需要认证
                 })

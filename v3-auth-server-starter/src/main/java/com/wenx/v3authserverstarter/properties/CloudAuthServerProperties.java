@@ -94,7 +94,7 @@ public class CloudAuthServerProperties {
          */
         private String[] publicPaths = {
             "/oauth/**","/oauth2/**", "/.well-known/**", "/login", "/logout", "/error",
-            "/actuator/**",
+            "/actuator/health/**", "/actuator/info/**", "/actuator/prometheus/**",
             "/api/auth/login", "/api/auth/logout",
             "/api/oauth2/test/**",
             "/css/**", "/js/**", "/images/**", "/favicon.ico", "/doc.html",

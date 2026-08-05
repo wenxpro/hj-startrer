@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wenx.v3authserverstarter.mixin.UserDetailMixin;
 import com.wenx.v3secure.user.UserDetail;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,7 +32,6 @@ import java.util.List;
  * @author wenx
  */
 @Slf4j
-@RequiredArgsConstructor
 public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationService {
 
     private final JdbcOAuth2AuthorizationService jdbcService;
@@ -55,12 +53,31 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     public RedisOAuth2AuthorizationService(JdbcTemplate jdbcTemplate,
                                            RegisteredClientRepository registeredClientRepository,
                                            RedisTemplate<String, Object> redisTemplate) {
-        // 创建一个自定义的 OAuth2AuthorizationRowMapper 并注入到 JdbcOAuth2AuthorizationService 中
-        // 关键在于这里要配置 ObjectMapper，使其能够识别并反序列化 UserDetail
+        // 自定义 RowMapper + ParametersMapper（读写两侧都用带 UserDetailMixin 的 ObjectMapper）：
+        // UserDetail 的 authoritySet 等字段常为 Set.of()（ImmutableCollections$SetN），
+        // 不在 Security Jackson allowlist 内，读取/写入均会 "not in the allowlist" 导致授权码换 token 失败
         CustomOAuth2AuthorizationRowMapper rowMapper = new CustomOAuth2AuthorizationRowMapper(registeredClientRepository);
         this.jdbcService = new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
         this.jdbcService.setAuthorizationRowMapper(rowMapper);
+        // 写入侧（官方 OAuth2AuthorizationParametersMapper 默认 ObjectMapper 无 mixin，必须替换）
+        JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper parametersMapper =
+                new JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper();
+        parametersMapper.setObjectMapper(buildUserDetailAwareMapper());
+        this.jdbcService.setAuthorizationParametersMapper(parametersMapper);
         this.redisTemplate = redisTemplate;
+    }
+
+    /**
+     * 构建带 UserDetailMixin 的 ObjectMapper（authoritySet/teamIds 序列化降级为 allowlist 内的 ArrayList）
+     */
+    private static ObjectMapper buildUserDetailAwareMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
+        List<Module> securityModules = SecurityJackson2Modules.getModules(classLoader);
+        objectMapper.registerModules(securityModules);
+        objectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
+        objectMapper.addMixIn(UserDetail.class, UserDetailMixin.class);
+        return objectMapper;
     }
 
     /**
@@ -71,17 +88,8 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         public CustomOAuth2AuthorizationRowMapper(RegisteredClientRepository registeredClientRepository) {
             super(registeredClientRepository);
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
-
-            List<Module> securityModules = SecurityJackson2Modules.getModules(classLoader);
-            objectMapper.registerModules(securityModules);
-            objectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
-
-            // 解决 "not in the allowlist" 的问题。
-            objectMapper.addMixIn(UserDetail.class, UserDetailMixin.class);
-
-            setObjectMapper(objectMapper);
+            // 与写入侧共用同一 mixin 配置（UserDetail 集合字段序列化降级为 ArrayList）
+            setObjectMapper(buildUserDetailAwareMapper());
         }
     }
 

@@ -35,10 +35,10 @@ public class DataSourceSwitcher {
      * @param username 用户名
      * @param password 密码
      */
-    public void addTenantDataSource(String tenantId, String url, String username, String password) {
+    public synchronized void addTenantDataSource(String tenantId, String url, String username, String password) {
         String dataSourceKey = DynamicDataSourceConfig.buildTenantDataSource(tenantId);
         
-        // 检查数据源是否已存在
+        // 检查数据源是否已存在（Z13：synchronized 防止并发开通同一租户重复建池）
         if (isDataSourceExists(dataSourceKey)) {
             log.debug("租户数据源已存在: {} (租户ID: {})", dataSourceKey, tenantId);
             return;
@@ -73,7 +73,7 @@ public class DataSourceSwitcher {
      * @param tenantId           租户ID
      * @param dataSourceProperty 数据源配置
      */
-    public void addTenantDataSource(String tenantId, DataSourceProperty dataSourceProperty) {
+    public synchronized void addTenantDataSource(String tenantId, DataSourceProperty dataSourceProperty) {
         String dataSourceKey = DynamicDataSourceConfig.buildTenantDataSource(tenantId);
         
         // 检查数据源是否已存在
