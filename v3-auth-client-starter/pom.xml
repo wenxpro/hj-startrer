@@ -5,7 +5,7 @@
     
     <parent>
         <groupId>com.wenx</groupId>
-        <artifactId>v3-starter</artifactId>
+        <artifactId>hj-starter</artifactId>
         <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
@@ -69,7 +69,7 @@
         <!-- V3 Core -->
         <dependency>
             <groupId>com.wenx</groupId>
-            <artifactId>v3-core</artifactId>
+            <artifactId>hj-core</artifactId>
         </dependency>
 
         <!-- Micrometer Tracing：RestTemplate W3C traceparent 传播（log 标准化改造） -->

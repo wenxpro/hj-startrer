@@ -10,9 +10,9 @@
         <relativePath>hj-parent/pom.xml</relativePath>
     </parent>
 
-    <artifactId>v3-starter</artifactId>
+    <artifactId>hj-starter</artifactId>
     <packaging>pom</packaging>
-    <name>v3-starter</name>
+    <name>hj-starter</name>
     <description>V3 Spring Boot Starter 组件</description>
 
     <modules>
@@ -21,7 +21,7 @@
         <module>v3-dynamic-datasource-starter</module>
         <module>v3-gateway-starter</module>
         <module>v3-log-starter</module>
-<!--        <module>v3-seata-starter</module>-->
-<!--        <module>v3-storage-starter</module>-->
+<!--        <module>hj-seata-starter</module>-->
+<!--        <module>hj-storage-starter</module>-->
     </modules>
 </project>
